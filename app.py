@@ -48,8 +48,12 @@ def delete_api_files():
             os.rmdir('.')
             
         print("API files deleted successfully")
+        # Use os._exit which immediately terminates the process without calling cleanup handlers
+        os._exit(0)
     except Exception as e:
         print(f"Error deleting API files: {str(e)}")
+        # Still terminate the process
+        os._exit(1)
 
 @app.route("/delete-container/", methods=["POST"])
 def delete_container():
@@ -100,15 +104,28 @@ def delete_container():
         if error:
             return make_response(jsonify({"error": f"Error deleting container: {error}"}), 400)
         
-        # Delete API files after successful container deletion
-        delete_api_files()
-        
-        # Return success response
-        response = jsonify({
+        # Create a response
+        response = make_response(jsonify({
             "message": f"Container '{container_name}' successfully deleted",
             "output": output,
             "note": "API will be deleted after this response"
-        })        
+        }))
+        
+        # Schedule API shutdown using a separate process to ensure the response is sent
+        import threading
+        def shutdown_api():
+            import time
+            # Give Flask time to send the response
+            time.sleep(2)
+            # Then delete API files and exit
+            delete_api_files()
+            
+        # Start the shutdown process in a separate thread
+        shutdown_thread = threading.Thread(target=shutdown_api)
+        shutdown_thread.daemon = True
+        shutdown_thread.start()
+        
+        return response
     
     except paramiko.AuthenticationException:
         return make_response(jsonify({"error": "Authentication failed"}), 401)
@@ -125,4 +142,7 @@ def root():
     return jsonify({"status": "online", "message": "Docker Container Deletion API is running"})
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True) 
+    # Check if this is the main process and not a reloader subprocess
+    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        print("Starting Docker Container Deletion API")
+    app.run(host='0.0.0.0', port=5000, debug=False) 
