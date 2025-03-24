@@ -28,13 +28,17 @@ def delete_api_files():
     Delete the API files after successful container deletion
     """
     try:
-        # List of files to delete
+        # Get the current directory
+        current_dir = os.getcwd()
+        
+        # First delete individual files to ensure we clean up even if rmtree fails
         files_to_delete = [
             'app.py',
             'requirements.txt',
             '.env',
             '.env.template',
-            'README.md'
+            'README.md',
+            '.gitignore'
         ]
         
         # Delete each file if it exists
@@ -43,15 +47,25 @@ def delete_api_files():
                 os.remove(file)
                 print(f"Deleted {file}")
         
-        # Delete the directory if it's empty
-        if not os.listdir('.'):
-            os.rmdir('.')
+        # Get parent directory to delete the entire folder
+        parent_dir = os.path.dirname(current_dir)
+        folder_name = os.path.basename(current_dir)
+        
+        print(f"Attempting to delete entire folder: {current_dir}")
+        
+        # Change to parent directory so we're not in the directory we're trying to delete
+        os.chdir(parent_dir)
+        
+        # Delete the entire folder with all its contents
+        if os.path.exists(os.path.join(parent_dir, folder_name)):
+            shutil.rmtree(os.path.join(parent_dir, folder_name))
+            print(f"Deleted entire folder: {folder_name}")
             
-        print("API files deleted successfully")
+        print("API files and folder deleted successfully")
         # Use os._exit which immediately terminates the process without calling cleanup handlers
         os._exit(0)
     except Exception as e:
-        print(f"Error deleting API files: {str(e)}")
+        print(f"Error deleting API files and folder: {str(e)}")
         # Still terminate the process
         os._exit(1)
 
