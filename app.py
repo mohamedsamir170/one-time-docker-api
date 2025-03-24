@@ -1,5 +1,7 @@
 import os
 import json
+import sys
+import shutil
 from flask import Flask, request, jsonify, make_response
 from pydantic import BaseModel
 import paramiko
@@ -21,10 +23,38 @@ SSH_KEY_PATH = os.getenv("SSH_KEY_PATH")
 class Container(BaseModel):
     name: str
 
+def delete_api_files():
+    """
+    Delete the API files after successful container deletion
+    """
+    try:
+        # List of files to delete
+        files_to_delete = [
+            'app.py',
+            'requirements.txt',
+            '.env',
+            '.env.template',
+            'README.md'
+        ]
+        
+        # Delete each file if it exists
+        for file in files_to_delete:
+            if os.path.exists(file):
+                os.remove(file)
+                print(f"Deleted {file}")
+        
+        # Delete the directory if it's empty
+        if not os.listdir('.'):
+            os.rmdir('.')
+            
+        print("API files deleted successfully")
+    except Exception as e:
+        print(f"Error deleting API files: {str(e)}")
+
 @app.route("/delete-container/", methods=["POST"])
 def delete_container():
     """
-    Delete a Docker container on the remote server by name.
+    Delete a Docker container on the remote server by name and then delete the API.
     """
     try:
         # Get container name from request JSON
@@ -70,7 +100,15 @@ def delete_container():
         if error:
             return make_response(jsonify({"error": f"Error deleting container: {error}"}), 400)
         
-        return jsonify({"message": f"Container '{container_name}' successfully deleted", "output": output})
+        # Delete API files after successful container deletion
+        delete_api_files()
+        
+        # Return success response
+        response = jsonify({
+            "message": f"Container '{container_name}' successfully deleted",
+            "output": output,
+            "note": "API will be deleted after this response"
+        })        
     
     except paramiko.AuthenticationException:
         return make_response(jsonify({"error": "Authentication failed"}), 401)
